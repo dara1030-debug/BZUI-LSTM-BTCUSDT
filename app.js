@@ -18,6 +18,41 @@ const timeframeSelect = document.getElementById('timeframe');
 const liveEl = document.getElementById('live-dot');
 const accuracyEl = document.getElementById('accuracy');
 
+// ---- Paper Trading Bot (Simulation Only) ----
+const INITIAL_USDT = 10000;
+const BUY_THRESHOLD = 0.000001;
+const SELL_THRESHOLD = -0.000001; //Sell if forecast is -0.05%
+const TRADE_FRACTION = 0.10;   // Use 10% per simulated trade
+const TRADE_COOLDOWN = 30000; // 30 seconds
+
+const botStartBtn = document.getElementById('bot-start');
+const botStopBtn = document.getElementById('bot-stop');
+const botResetBtn = document.getElementById('bot-reset');
+
+const botTestBuyBtn = document.getElementById('bot-test-buy');
+const botTestSellBtn = document.getElementById('bot-test-sell');
+
+const botStatusEl = document.getElementById('bot-status');
+const botDecisionEl = document.getElementById('bot-decision');
+const botReasonEl = document.getElementById('bot-reason');
+const botForecastChangeEl = document.getElementById('bot-forecast-change');
+const botCurrentPriceEl = document.getElementById('bot-current-price');
+const botPredictedPriceEl = document.getElementById('bot-predicted-price');
+const walletUsdtEl = document.getElementById('wallet-usdt');
+const walletBtcEl = document.getElementById('wallet-btc');
+const walletEquityEl = document.getElementById('wallet-equity');
+const walletPnlEl = document.getElementById('wallet-pnl');
+const tradeHistoryEl = document.getElementById('trade-history');
+
+let virtualWallet = {
+  usdt: INITIAL_USDT,
+  btc: 0
+};
+
+let botRunning = false;
+let tradeHistory = [];
+let lastBotCandleTime = null;
+let lastTradeTime = 0;
 const chart = new BzChart(document.getElementById('c-btc'), { type: 'candlestick', labels: [], datasets: [], height: 420 });
 
 let WINDOW = Number(windowSelect.value);
@@ -110,6 +145,241 @@ function trainAndForecast(closes, latestTime) {
 
 const fmtTime = (ms) => new Date(ms).toISOString().slice(11, 19);
 
+// ---- Paper Trading Wallet UI ----
+
+function getCurrentPrice() {
+  if (!candles.length) return 0;
+  return candles[candles.length - 1].c;
+}
+
+function getWalletEquity() {
+  const price = getCurrentPrice();
+  return virtualWallet.usdt + (virtualWallet.btc * price);
+}
+
+function updateTradingUI() {
+  const price = getCurrentPrice();
+  const equity = getWalletEquity();
+  const pnl = equity - INITIAL_USDT;
+
+  walletUsdtEl.innerHTML = `${virtualWallet.usdt.toFixed(2)} <small>USDT</small>`;
+  walletBtcEl.innerHTML = `${virtualWallet.btc.toFixed(8)} <small>BTC</small>`;
+  walletEquityEl.innerHTML = `${equity.toFixed(2)} <small>USDT</small>`;
+
+  walletPnlEl.innerHTML = `${pnl > 0 ? '+' : ''}${pnl.toFixed(2)} <small>USDT</small>`;
+  walletPnlEl.classList.toggle('pnl-positive', pnl > 0);
+  walletPnlEl.classList.toggle('pnl-negative', pnl < 0);
+  walletPnlEl.classList.toggle('pnl-neutral', pnl === 0);
+
+  botStatusEl.textContent = botRunning ? 'Running' : 'Stopped';
+  botStatusEl.style.color = botRunning ? '#16a34a' : '#dc2626';
+
+  renderTradeHistory();
+}
+
+function renderTradeHistory() {
+  tradeHistoryEl.replaceChildren();
+
+  if (tradeHistory.length === 0) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+
+    cell.colSpan = 6;
+    cell.textContent = 'No simulated trades yet.';
+    cell.style.textAlign = 'center';
+    cell.className = 'trade-empty';
+
+    row.appendChild(cell);
+    tradeHistoryEl.appendChild(row);
+    return;
+  }
+
+  for (const trade of tradeHistory.slice().reverse()) {
+    const row = document.createElement('tr');
+
+    // Date and time
+    const timeCell = document.createElement('td');
+    timeCell.textContent = new Date(trade.time).toLocaleString();
+    row.appendChild(timeCell);
+
+    // BUY / SELL badge
+    const typeCell = document.createElement('td');
+    const badge = document.createElement('span');
+
+    badge.textContent = trade.type;
+    badge.className = trade.type === 'BUY' ? 'trade-buy' : 'trade-sell';
+
+    typeCell.appendChild(badge);
+    row.appendChild(typeCell);
+
+    // Price
+    const priceCell = document.createElement('td');
+    priceCell.textContent = '$' + trade.price.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    row.appendChild(priceCell);
+
+    // BTC amount
+    const amountCell = document.createElement('td');
+    amountCell.textContent = trade.amount.toFixed(8);
+    row.appendChild(amountCell);
+
+    // Trade value
+    const valueCell = document.createElement('td');
+    valueCell.textContent = '$' + trade.value.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    row.appendChild(valueCell);
+
+    // Forecast at time of trade
+    const forecastCell = document.createElement('td');
+
+    const forecastValue = Number(trade.forecast ?? 0);
+
+    forecastCell.textContent =
+      `${forecastValue >= 0 ? '+' : ''}${forecastValue.toFixed(4)}%`;
+
+    forecastCell.style.color =
+      forecastValue >= 0 ? '#16a34a' : '#dc2626';
+
+    forecastCell.style.fontWeight = '600';
+
+    row.appendChild(forecastCell);
+
+    tradeHistoryEl.appendChild(row);
+  }
+}
+
+// ---- Simulated Trading Logic ----
+
+function executeSimulatedTrade(type, price, predictedChange) {
+  if (type === 'BUY') {
+    const amountToSpend = virtualWallet.usdt * TRADE_FRACTION;
+
+    if (amountToSpend <= 0) return;
+
+    const btcBought = amountToSpend / price;
+
+    virtualWallet.usdt -= amountToSpend;
+    virtualWallet.btc += btcBought;
+
+    tradeHistory.push({
+      time: Date.now(),
+      type: 'BUY',
+      price,
+      amount: btcBought,
+      value: amountToSpend,
+      forecast: predictedChange * 100
+    });
+
+    console.log('SIMULATED BUY:', btcBought, 'BTC at', price);
+  }
+
+  if (type === 'SELL') {
+    const btcToSell = virtualWallet.btc * TRADE_FRACTION;
+
+    if (btcToSell <= 0) return;
+
+    const valueReceived = btcToSell * price;
+
+    virtualWallet.btc -= btcToSell;
+    virtualWallet.usdt += valueReceived;
+
+    tradeHistory.push({
+      time: Date.now(),
+      type: 'SELL',
+      price,
+      amount: btcToSell,
+      value: valueReceived,
+      forecast: predictedChange * 100
+    });
+
+    console.log('SIMULATED SELL:', btcToSell, 'BTC at', price);
+  }
+
+  // Record the time of the successful trade
+  lastTradeTime = Date.now();
+
+  updateTradingUI();
+}
+
+function runTradingBot() {
+  if (!botRunning || !candles.length || !forecast.length) return;
+
+  const currentPrice = getCurrentPrice();
+  const predictedPrice = forecast[0];
+
+  const predictedChange = (predictedPrice - currentPrice) / currentPrice;
+
+  // Update decision display
+  botCurrentPriceEl.textContent = currentPrice.toFixed(2);
+  botPredictedPriceEl.textContent = predictedPrice.toFixed(2);
+
+  botForecastChangeEl.textContent =
+    `${predictedChange >= 0 ? '+' : ''}${(predictedChange * 100).toFixed(4)}%`;
+
+  botForecastChangeEl.style.color =
+    predictedChange >= 0 ? '#16a34a' : '#dc2626';
+
+  // Avoid trading multiple times on the same candle
+  const currentCandleTime = candles[candles.length - 1].time;
+
+// Prevent trading multiple times on the same candle
+if (currentCandleTime === lastBotCandleTime) return;
+
+// Prevent trading too frequently
+if (Date.now() - lastTradeTime < TRADE_COOLDOWN) return;
+
+lastBotCandleTime = currentCandleTime;
+
+  // BUY: Only buy when the virtual wallet has no BTC
+  if (
+    predictedChange > BUY_THRESHOLD &&
+    virtualWallet.usdt > 0 &&
+    virtualWallet.btc === 0
+  ) {
+    botDecisionEl.textContent = 'BUY';
+    botDecisionEl.className = 'signal-buy';
+
+    botReasonEl.textContent =
+      `The LSTM predicts an increase of ${(predictedChange * 100).toFixed(4)}%. The bot has no BTC holdings, so it will buy BTC using 10% of available USDT.`;
+
+    executeSimulatedTrade('BUY', currentPrice, predictedChange);
+
+  // SELL: Reduce BTC holdings when the forecast predicts a decrease
+  } else if (
+    predictedChange < SELL_THRESHOLD &&
+    virtualWallet.btc > 0
+  ) {
+    botDecisionEl.textContent = 'SELL';
+    botDecisionEl.className = 'signal-sell';
+
+    botReasonEl.textContent =
+      `The LSTM predicts a decrease of ${(predictedChange * 100).toFixed(4)}%. The bot will sell 10% of its current BTC holdings.`;
+
+    executeSimulatedTrade('SELL', currentPrice, predictedChange);
+  // HOLD: No trade conditions were met
+  } else {
+    botDecisionEl.textContent = 'HOLD';
+    botDecisionEl.className = 'signal-hold';
+
+    if (predictedChange > BUY_THRESHOLD && virtualWallet.btc > 0) {
+      botReasonEl.textContent =
+        'The forecast indicates a BUY signal, but the bot already holds BTC. It will not purchase additional BTC.';
+    } else if (predictedChange < SELL_THRESHOLD && virtualWallet.btc === 0) {
+      botReasonEl.textContent =
+        'The forecast indicates a SELL signal, but the bot has no BTC holdings to sell.';
+    } else {
+      botReasonEl.textContent =
+        `The predicted change is ${(predictedChange * 100).toFixed(4)}%. No trade conditions were met.`;
+    }
+
+    console.log('Bot decision: HOLD');
+    updateTradingUI();
+  }
+}
 function buildOptions(type) {
   const n = candles.length;
   const labels = [
@@ -315,12 +585,22 @@ async function tick() {
     };
     if (!model) resetModel();
     forecast = trainAndForecast(closes, candles[candles.length - 1].time);
-    predictions.set(candles[candles.length - 1].time + INTERVAL_MS[INTERVAL], forecast[0]);
-    render();
-    updateText();
-    updateAccuracy();
-    updateGraph();
-    updateUnroll();
+
+predictions.set(
+  candles[candles.length - 1].time + INTERVAL_MS[INTERVAL],
+  forecast[0]
+);
+
+// Update the paper trading bot
+runTradingBot();
+updateTradingUI();
+
+render();
+updateText();
+updateAccuracy();
+updateGraph();
+updateUnroll();
+
     statusEl.textContent = `Live · updated ${new Date().toLocaleTimeString()} · ${candles.length} × ${INTERVAL} candles`;
   } catch (err) {
     liveEl.dataset.state = 'error';
@@ -367,6 +647,124 @@ timeframeSelect.addEventListener('change', () => {
   resetModel();
 
   recalc();
+});
+
+// ---- Paper Trading Bot Controls ----
+
+botStartBtn.addEventListener('click', () => {
+  if (botRunning) return;
+
+  botRunning = true;
+  lastBotCandleTime = null;
+
+  botStatusEl.textContent = 'Running';
+  botStatusEl.style.color = '#16a34a';
+
+  updateTradingUI();
+
+  console.log('Paper trading bot started.');
+});
+
+botStopBtn.addEventListener('click', () => {
+  botRunning = false;
+
+  botStatusEl.textContent = 'Stopped';
+  botStatusEl.style.color = '#dc2626';
+
+  updateTradingUI();
+
+  console.log('Paper trading bot stopped.');
+});
+
+botResetBtn.addEventListener('click', () => {
+  botRunning = false;
+
+  virtualWallet = {
+    usdt: INITIAL_USDT,
+    btc: 0
+  };
+
+  tradeHistory = [];
+  lastBotCandleTime = null;
+
+  updateTradingUI();
+
+  console.log('Paper trading account reset.');
+});
+
+// ---- Paper Trading Bot Controls ----
+
+botStartBtn.addEventListener('click', () => {
+  // ...
+});
+
+botStopBtn.addEventListener('click', () => {
+  // ...
+});
+
+botResetBtn.addEventListener('click', () => {
+  // ...
+});
+// ---- Manual Paper Trading Tests ----
+
+botTestBuyBtn.addEventListener('click', () => {
+  const price = getCurrentPrice();
+  botCurrentPriceEl.textContent = price.toFixed(2);
+
+if (forecast.length > 0) {
+  const predictedPrice = forecast[0];
+  const predictedChange = (predictedPrice - price) / price;
+
+  botPredictedPriceEl.textContent = predictedPrice.toFixed(2);
+
+  botForecastChangeEl.textContent =
+    `${predictedChange >= 0 ? '+' : ''}${(predictedChange * 100).toFixed(4)}%`;
+
+  botForecastChangeEl.style.color =
+    predictedChange >= 0 ? '#16a34a' : '#dc2626';
+}
+
+  if (price <= 0) {
+    console.log('Cannot simulate BUY: market price unavailable.');
+    return;
+  }
+
+  executeSimulatedTrade('BUY', price);
+
+  console.log('Manual BUY test completed.');
+});
+
+botTestSellBtn.addEventListener('click', () => {
+  const price = getCurrentPrice();
+  botCurrentPriceEl.textContent = price.toFixed(2);
+
+if (forecast.length > 0) {
+  const predictedPrice = forecast[0];
+  const predictedChange = (predictedPrice - price) / price;
+
+  botPredictedPriceEl.textContent = predictedPrice.toFixed(2);
+
+  botForecastChangeEl.textContent =
+    `${predictedChange >= 0 ? '+' : ''}${(predictedChange * 100).toFixed(4)}%`;
+
+  botForecastChangeEl.style.color =
+    predictedChange >= 0 ? '#16a34a' : '#dc2626';
+}
+
+  if (price <= 0) {
+    console.log('Cannot simulate SELL: market price unavailable.');
+    return;
+  }
+
+  if (virtualWallet.btc <= 0) {
+    console.log('Cannot simulate SELL: no BTC available. Test BUY first.');
+    return;
+  }
+
+  executeSimulatedTrade('SELL', price);
+
+
+  console.log('Manual SELL test completed.');
 });
 
 tick();

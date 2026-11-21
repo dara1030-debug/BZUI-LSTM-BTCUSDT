@@ -46,6 +46,257 @@
     .ug-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
     .ug-canvas:focus-visible { outline: 2px solid var(--bz-focus-ring, #2563eb); outline-offset: -2px; }
   </style>
+  <style>
+  /* Paper Trading Dashboard */
+
+  .bot-decision {
+    margin: 24px 0;
+    padding: 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #f8fafc, #ffffff);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+  }
+
+  .bot-decision h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+  }
+
+  #bot-decision {
+    display: inline-block;
+    min-width: 140px;
+    padding: 12px 24px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+
+  #bot-reason {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #475569;
+  }
+
+  .bot-decision p {
+    margin: 12px 0;
+  }
+
+  #bot-forecast-change {
+    font-weight: 700;
+  }
+
+  #bot-current-price,
+  #bot-predicted-price {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Trading signal colors */
+
+  .signal-buy {
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    border: 1px solid #86efac;
+  }
+
+  .signal-sell {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fca5a5;
+  }
+
+  .signal-hold {
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid #cbd5e1;
+  }
+
+  /* Trade history */
+
+  #trade-history tr:hover {
+    background: #f8fafc;
+  }
+
+  #trade-history td {
+    padding: 12px;
+    white-space: nowrap;
+  }
+
+  .trade-buy {
+    color: #16a34a;
+    font-weight: 700;
+  }
+
+  .trade-sell {
+    color: #dc2626;
+    font-weight: 700;
+  }
+
+  /* Responsive layout */
+
+  @media (max-width: 768px) {
+    .bot-decision {
+      padding: 16px;
+    }
+
+    #bot-decision {
+      font-size: 26px;
+      min-width: 110px;
+    }
+
+    #bot-reason {
+      font-size: 14px;
+    }
+  }
+  .trade-buy {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(22, 163, 74, 0.15);
+  color: #16a34a;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.trade-sell {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* Dummy account */
+.dummy-account {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bz-space-3);
+}
+
+.dummy-account-header,
+.dummy-account-title {
+  display: flex;
+  align-items: center;
+}
+
+.dummy-account-header {
+  justify-content: space-between;
+  gap: var(--bz-space-3);
+}
+
+.dummy-account-title {
+  gap: var(--bz-space-2);
+}
+
+.dummy-account-title .account-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.10);
+  color: #2563eb;
+}
+
+.dummy-account-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--bz-space-3);
+}
+
+.dummy-stat {
+  min-width: 0;
+  padding: var(--bz-space-4);
+  border: 1px solid var(--bz-border, #e2e8f0);
+  border-radius: var(--bz-radius-md, 12px);
+  background: var(--bz-surface, #fff);
+}
+
+.dummy-stat-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--bz-space-2);
+  color: var(--bz-text-muted, #64748b);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dummy-stat-value {
+  margin: 0;
+  color: var(--bz-text, #0f172a);
+  font-size: clamp(20px, 2vw, 28px);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.dummy-stat-value small {
+  margin-left: 4px;
+  color: var(--bz-text-muted, #64748b);
+  font-size: 12px;
+}
+
+#wallet-pnl.pnl-positive { color: #16a34a; }
+#wallet-pnl.pnl-negative { color: #dc2626; }
+#wallet-pnl.pnl-neutral { color: var(--bz-text-muted, #64748b); }
+
+.trade-history-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--bz-border, #e2e8f0);
+  border-radius: var(--bz-radius-md, 12px);
+}
+
+.trade-history-wrap .bz-table {
+  margin: 0;
+}
+
+.trade-history-wrap th,
+.trade-history-wrap td {
+  padding: 12px 16px;
+}
+
+.trade-history-wrap th {
+  color: var(--bz-text-muted, #64748b);
+  background: var(--bz-surface-subtle, #f8fafc);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trade-empty {
+  height: 88px;
+  color: var(--bz-text-muted, #64748b) !important;
+}
+
+@media (max-width: 900px) {
+  .dummy-account-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .dummy-account-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dummy-stat {
+    padding: var(--bz-space-3);
+  }
+
+  .trade-history-wrap th,
+  .trade-history-wrap td {
+    padding: 10px 12px;
+  }
+}
+</style>
 </head>
 <body>
   <main class="bz-container btc-page">
@@ -109,7 +360,145 @@
       </div>
       <p class="bz-text-muted bz-m-0">Educational demo only. A tiny LSTM on 1-second prices is not a trading signal.</p>
     </section>
+<!-- Paper Trading Dashboard -->
+<section class="bz-card btc-net bz-mt-6" aria-labelledby="t-trading">
+  <h2 id="t-trading" class="bz-text-lg bz-font-semibold bz-m-0">
+    Paper Trading Bot
+  </h2>
 
+  <p class="bz-text-muted bz-m-0">
+    Simulated trading only. No real cryptocurrency transactions.
+  </p>
+
+  <div class="bz-flex bz-wrap bz-gap-4 bz-items-center">
+    <button type="button" id="bot-start" class="bz-btn bz-btn-primary">
+      Start Bot
+    </button>
+
+    <button type="button" id="bot-stop" class="bz-btn bz-btn-outline">
+      Stop Bot
+    </button>
+
+    <button type="button" id="bot-reset" class="bz-btn bz-btn-outline">
+      Reset Account
+    </button>
+
+    <button type="button" id="bot-test-buy" class="bz-btn bz-btn-outline">
+      Test BUY
+    </button>
+
+    <button type="button" id="bot-test-sell" class="bz-btn bz-btn-outline">
+      Test SELL
+    </button>
+
+    <span id="bot-status" class="bz-text-success">Stopped</span>
+</div>
+    <span id="bot-status" class="bz-text-muted">
+      Stopped
+    </span>
+  </div>
+<!-- Latest Bot Decision -->
+<div class="bot-decision">
+  <h2>Live Bot Decision</h2>
+
+  <div id="bot-decision" style="font-size: 32px; font-weight: bold;">
+    WAITING
+  </div>
+
+  <p id="bot-reason">
+    Start the bot to begin analyzing market predictions.
+  </p>
+
+  <p>
+    Forecast Change:
+    <strong id="bot-forecast-change">0.00%</strong>
+  </p>
+
+  <p>
+    Current BTC Price:
+    <strong id="bot-current-price">--</strong> USDT
+  </p>
+
+  <p>
+    Predicted BTC Price:
+    <strong id="bot-predicted-price">--</strong> USDT
+  </p>
+</div>
+
+  <div class="dummy-account" aria-labelledby="dummy-account-title">
+    <div class="dummy-account-header">
+      <h3 id="dummy-account-title" class="dummy-account-title bz-text-lg bz-font-semibold bz-m-0">
+        <span class="account-icon" aria-hidden="true">◎</span>
+        Dummy Account
+      </h3>
+    </div>
+
+    <div class="dummy-account-grid">
+      <div class="dummy-stat">
+        <p class="dummy-stat-label">Virtual USDT</p>
+        <h3 id="wallet-usdt" class="dummy-stat-value">
+          10,000.00 <small>USDT</small>
+        </h3>
+      </div>
+
+      <div class="dummy-stat">
+        <p class="dummy-stat-label">Virtual BTC</p>
+        <h3 id="wallet-btc" class="dummy-stat-value">
+          0.00000000 <small>BTC</small>
+        </h3>
+      </div>
+
+      <div class="dummy-stat">
+        <p class="dummy-stat-label">Total Equity</p>
+        <h3 id="wallet-equity" class="dummy-stat-value">
+          10,000.00 <small>USDT</small>
+        </h3>
+      </div>
+
+      <div class="dummy-stat">
+        <p class="dummy-stat-label">Profit / Loss</p>
+        <h3 id="wallet-pnl" class="dummy-stat-value pnl-neutral">
+          0.00 <small>USDT</small>
+        </h3>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="bz-text-lg bz-font-semibold bz-m-0">
+    Trading Configuration
+  </h3>
+
+  <p id="trading-config" class="bz-text-muted bz-m-0">
+    BUY threshold: +0.05% · SELL threshold: -0.05% · Trade size: 10% of available USDT
+  </p>
+
+  <h3 class="bz-text-lg bz-font-semibold bz-m-0">
+    Simulated Trade History
+  </h3>
+
+  <div class="trade-history-wrap">
+    <table class="bz-table" id="trade-table">
+      <thead>
+  <tr>
+    <th>TIME</th>
+    <th>SIDE</th>
+    <th>PRICE</th>
+    <th>QUANTITY (BTC)</th>
+    <th>TRADE VALUE</th>
+    <th>FORECAST</th>
+  </tr>
+</thead>
+
+      <tbody id="trade-history">
+        <tr>
+          <td colspan="5" class="trade-empty bz-text-muted">
+            No simulated trades yet.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
     <section class="bz-card btc-net bz-mt-6" aria-labelledby="t-net">
       <h2 id="t-net" class="bz-text-lg bz-font-semibold bz-m-0">Live LSTM network</h2>
       <p class="bz-text-muted bz-m-0">One cell evaluated on the newest window. Values update every second; edge thickness follows the weight magnitude.</p>
